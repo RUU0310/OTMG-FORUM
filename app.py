@@ -6,6 +6,11 @@ from apis.user_api import user_bp, login as user_login
 from apis.upload_api import upload_bp
 import logging
 import os
+from models.game_user import GameUser
+from models.game_comment import GameComment
+from models.game_comment_like import GameCommentLike
+from models.game_character import GameCharacter
+from models.group_post import Group, Post, PostCategory, PostLike, PollOption, PollVote
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-key-please-change'  # 用于session，生产环境请更换
