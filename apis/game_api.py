@@ -45,10 +45,11 @@ def add_game():
     )
     db.session.add(game)
     db.session.commit()
-    # 自动为新游戏创建小组
-    group = Group(game_id=game.game_id, name=game.name, description=f"{game.name} 讨论小组")
-    db.session.add(group)
-    db.session.commit()
+    # 自动为新游戏创建小组（避免重复）
+    if not Group.query.filter_by(game_id=game.game_id).first():
+        group = Group(game_id=game.game_id, name=game.name + "小组", description=f"{game.name} 讨论小组")
+        db.session.add(group)
+        db.session.commit()
     return jsonify({'status': 'success', 'game_id': game.game_id})
 
 @game_bp.route('/games/<int:game_id>', methods=['PUT'])

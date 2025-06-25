@@ -4,6 +4,7 @@ from extension import db
 from apis.game_api import game_bp
 from apis.user_api import user_bp, login as user_login
 from apis.upload_api import upload_bp
+from apis.group_api import group_api
 import logging
 import os
 from models.game_user import GameUser
@@ -25,6 +26,7 @@ db.init_app(app)
 app.register_blueprint(game_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(upload_bp)
+app.register_blueprint(group_api)
 app.add_url_rule('/users/login', view_func=user_login, methods=['POST'])
 
 @app.cli.command()
