@@ -5,6 +5,9 @@ from apis.game_api import game_bp
 from apis.user_api import user_bp, login as user_login
 from apis.upload_api import upload_bp
 from apis.group_api import group_api
+from apis.group_buy_api import group_buy_api
+from apis import message_api
+from apis.game_character_api import game_character_api
 import logging
 import os
 from models.game_user import GameUser
@@ -12,6 +15,8 @@ from models.game_comment import GameComment
 from models.game_comment_like import GameCommentLike
 from models.game_character import GameCharacter
 from models.group_post import Group, Post, PostCategory, PostLike, PollOption, PollVote
+from models.group_buy import GroupBuyProduct, GroupBuyCharacter, GroupBuy, GroupBuyMember, UserGroupBuyStats
+from models.user_cancel_stats import UserCancelStats
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-key-please-change'  # 用于session，生产环境请更换
@@ -27,6 +32,9 @@ app.register_blueprint(game_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(upload_bp)
 app.register_blueprint(group_api)
+app.register_blueprint(group_buy_api, url_prefix='/api/group-buy')
+app.register_blueprint(message_api.bp)
+app.register_blueprint(game_character_api)
 app.add_url_rule('/users/login', view_func=user_login, methods=['POST'])
 
 @app.cli.command()
