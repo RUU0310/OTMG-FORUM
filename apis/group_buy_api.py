@@ -304,7 +304,7 @@ def get_group_buy(group_buy_id):
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)}), 500 
 
 @group_buy_api.route('/group-buys/<int:group_buy_id>', methods=['PUT', 'PATCH'])
 def update_group_buy(group_buy_id):
