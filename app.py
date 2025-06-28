@@ -9,6 +9,8 @@ from apis.group_buy_api import group_buy_api
 from apis import message_api
 from apis.game_character_api import game_character_api
 from apis.character_tag_api import character_tag_api
+from apis.fantasy_chat_api import fantasy_chat_api
+from apis.ideal_character_api import ideal_character_api
 import logging
 import os
 from models.game_user import GameUser
@@ -38,6 +40,8 @@ app.register_blueprint(group_buy_api, url_prefix='/api/group-buy')
 app.register_blueprint(message_api.bp)
 app.register_blueprint(game_character_api)
 app.register_blueprint(character_tag_api, url_prefix='/api')
+app.register_blueprint(fantasy_chat_api, url_prefix='/api')
+app.register_blueprint(ideal_character_api, url_prefix='/api')
 app.add_url_rule('/users/login', view_func=user_login, methods=['POST'])
 
 @app.cli.command()

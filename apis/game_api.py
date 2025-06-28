@@ -301,3 +301,50 @@ def delete_character(char_id):
     db.session.delete(c)
     db.session.commit()
     return jsonify({'status': 'success'})
+
+@game_bp.route('/users/<int:user_id>/game-status', methods=['GET'])
+def get_user_game_status_list(user_id):
+    """获取用户的所有游戏状态"""
+    try:
+        # 获取用户的所有游戏状态
+        game_users = GameUser.query.filter_by(user_id=user_id).all()
+        
+        # 获取所有游戏信息
+        games = Game.query.all()
+        game_map = {game.game_id: game for game in games}
+        
+        # 按状态分类
+        wish_games = []
+        playing_games = []
+        played_games = []
+        
+        for gu in game_users:
+            game = game_map.get(gu.game_id)
+            if not game:
+                continue
+                
+            game_info = {
+                'game_id': game.game_id,
+                'name': game.name,
+                'image_url': game.image_url,
+                'publisher': game.publisher,
+                'rating': gu.rating
+            }
+            
+            if gu.status == 'wish':
+                wish_games.append(game_info)
+            elif gu.status == 'playing':
+                playing_games.append(game_info)
+            elif gu.status == 'played':
+                played_games.append(game_info)
+        
+        return jsonify({
+            'status': 'success',
+            'game_status': {
+                'wish': wish_games,
+                'playing': playing_games,
+                'played': played_games
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
