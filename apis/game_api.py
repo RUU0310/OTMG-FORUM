@@ -8,7 +8,8 @@ from flask import session
 from models.game_comment import GameComment
 from models.game_comment_like import GameCommentLike
 from models.game_character import GameCharacter
-from models.group_post import Group
+from models.group_post import Group, Post, PostFavorite, PostCategory
+from models.group_post import GroupMember
 
 game_bp = Blueprint('game', __name__)
 
@@ -26,6 +27,7 @@ def get_games():
             'publisher': game.publisher,
             'release_date': game.release_date.strftime('%Y-%m-%d') if game.release_date else None,
             'purchase_link': game.purchase_link,
+            'is_official': game.is_official,
         } for game in games
     ]
     return jsonify({'status': 'success', 'results': results})
@@ -41,6 +43,7 @@ def add_game():
         publisher=form.get('publisher'),
         release_date=datetime.strptime(form.get('release_date'), '%Y-%m-%d').date() if form.get('release_date') else None,
         purchase_link=form.get('purchase_link'),
+        is_official=form.get('is_official', False),
         created_at=datetime.utcnow()
     )
     db.session.add(game)
@@ -58,7 +61,7 @@ def update_game(game_id):
     if not game:
         return jsonify({'status': 'error', 'message': '游戏不存在'}), 404
     form = request.json
-    for field in ['name', 'image_url', 'description', 'region', 'publisher', 'purchase_link']:
+    for field in ['name', 'image_url', 'description', 'region', 'publisher', 'purchase_link', 'is_official']:
         if field in form:
             setattr(game, field, form[field])
     # 单独处理 release_date
@@ -93,6 +96,7 @@ def get_game_detail(game_id):
         'publisher': game.publisher,
         'release_date': game.release_date.strftime('%Y-%m-%d') if game.release_date else None,
         'purchase_link': game.purchase_link,
+        'is_official': game.is_official,
         'created_at': game.created_at.strftime('%Y-%m-%d %H:%M:%S') if hasattr(game, 'created_at') and game.created_at else None
     }
     return jsonify({'status': 'success', 'result': result})
@@ -119,8 +123,13 @@ def set_user_game_status(game_id):
     if not gu:
         gu = GameUser(user_id=user_id, game_id=game_id)
         db.session.add(gu)
-    if status:
+    
+    # 处理状态：如果status为None或空字符串，则清除状态
+    if status is None or status == '':
+        gu.status = None
+    else:
         gu.status = status
+    
     if rating is not None:
         if rating == '' or rating is None:
             gu.rating = None
@@ -170,7 +179,8 @@ def get_game_comments(game_id):
             'created_at': c.created_at.strftime('%Y-%m-%d %H:%M'),
             'like_count': like_count,
             'liked': liked,
-            'user_rating': user_rating
+            'user_rating': user_rating,
+            'user_role': user.role if user else 'user'
         })
     return jsonify({'status': 'success', 'results': result})
 
@@ -345,6 +355,70 @@ def get_user_game_status_list(user_id):
                 'playing': playing_games,
                 'played': played_games
             }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@game_bp.route('/users/<int:user_id>/favorite-posts', methods=['GET'])
+def get_user_favorite_posts(user_id):
+    """获取用户收藏的帖子"""
+    try:
+        # 获取用户收藏的帖子
+        favorites = PostFavorite.query.filter_by(user_id=user_id).all()
+        
+        favorite_posts = []
+        for fav in favorites:
+            post = Post.query.get(fav.post_id)
+            if not post:
+                continue
+                
+            # 获取分类信息
+            category_name = None
+            if post.category_id:
+                category = PostCategory.query.get(post.category_id)
+                category_name = category.name if category else None
+            
+            # 获取点赞数
+            from models.group_post import PostLike
+            like_count = PostLike.query.filter_by(post_id=post.post_id).count()
+            
+            # 获取用户信息
+            user = User.query.get(post.user_id)
+            username = user.username if user else None
+            nickname = user.nickname if user else None
+            
+            # 获取小组信息
+            group = Group.query.get(post.group_id)
+            group_name = group.name if group else None
+            
+            post_data = {
+                'post_id': post.post_id,
+                'group_id': post.group_id,
+                'group_name': group_name,
+                'user_id': post.user_id,
+                'username': username,
+                'nickname': nickname,
+                'title': post.title,
+                'content': post.content,
+                'images': post.images,
+                'created_at': post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else None,
+                'updated_at': post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else None,
+                'category_id': post.category_id,
+                'category_name': category_name,
+                'is_poll': post.is_poll,
+                'poll_type': post.poll_type,
+                'poll_deadline': post.poll_deadline,
+                'like_count': like_count,
+                'favorite_time': fav.created_at.strftime('%Y-%m-%d %H:%M') if fav.created_at else None
+            }
+            favorite_posts.append(post_data)
+        
+        # 按收藏时间倒序排列
+        favorite_posts.sort(key=lambda x: x['favorite_time'], reverse=True)
+        
+        return jsonify({
+            'status': 'success',
+            'favorite_posts': favorite_posts
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

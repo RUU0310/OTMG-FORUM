@@ -10,4 +10,5 @@ class Game(db.Model):
     publisher = db.Column(db.String(100), nullable=False)
     release_date = db.Column(db.Date)
     purchase_link = db.Column(db.String(255))
+    is_official = db.Column(db.Boolean, default=False)  # 是否为官方游戏
     created_at = db.Column(db.DateTime, nullable=False)

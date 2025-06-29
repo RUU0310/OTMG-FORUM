@@ -11,3 +11,5 @@ class User(db.Model):
     avatar = db.Column(db.String(255))
     bio = db.Column(db.Text)
     role = db.Column(db.String(20), nullable=False)
+    upgrade_status = db.Column(db.String(20), default='none')  # none, pending, approved, rejected
+    upgrade_request_time = db.Column(db.String(50))  # ISO格式的时间字符串
