@@ -24,6 +24,7 @@ from models.character_tag import Tag, CharacterTag
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-key-please-change'  # 用于session，生产环境请更换
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 设置最大文件上传大小为5MB
 CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
 
 # 数据库配置

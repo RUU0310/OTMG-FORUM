@@ -176,7 +176,7 @@ def get_game_comments(game_id):
             'nickname': user.nickname if user else '',
             'avatar': user.avatar if user else '',
             'content': c.content,
-            'created_at': c.created_at.strftime('%Y-%m-%d %H:%M'),
+            'created_at': c.created_at.isoformat() + 'Z' if c.created_at else None,
             'like_count': like_count,
             'liked': liked,
             'user_rating': user_rating,

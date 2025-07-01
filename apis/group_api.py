@@ -143,10 +143,18 @@ def get_post(post_id):
     liked = False
     if user_id:
         liked = PostLike.query.filter_by(post_id=p.post_id, user_id=user_id).first() is not None
+    # 获取用户信息
+    user = User.query.get(p.user_id)
+    username = user.username if user else None
+    nickname = user.nickname if user else None
+    avatar = user.avatar if user else None
     post_data = {
         'post_id': p.post_id, 
         'group_id': p.group_id, 
         'user_id': p.user_id, 
+        'username': username,
+        'nickname': nickname,
+        'avatar': avatar,
         'title': p.title, 
         'content': p.content, 
         'images': p.images, 

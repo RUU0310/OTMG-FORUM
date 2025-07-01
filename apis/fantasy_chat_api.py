@@ -13,10 +13,12 @@ DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', 'sk-e3be16962b18459381a1a300eea
 def fantasy_chat():
     try:
         data = request.json
+        # 新增：支持多轮对话
+        messages = data.get('messages')
         user_message = data.get('message', '')
         character_traits = data.get('character_traits', {})
         
-        if not user_message:
+        if not (user_message or (messages and isinstance(messages, list) and len(messages) > 0)):
             return jsonify({'success': False, 'message': '消息不能为空'})
         
         if not DEEPSEEK_API_KEY:
@@ -26,20 +28,19 @@ def fantasy_chat():
         character_prompt = build_character_prompt(character_traits)
         
         # 构建完整的对话提示
-        system_prompt = f"""你是一个基于用户偏好生成的理想角色形象。请严格按照以下设定来回复：
+        system_prompt = f"""你是一个基于用户偏好生成的理想角色形象。请严格按照以下设定来回复：\n\n{character_prompt}\n\n重要规则：\n1. 始终保持角色设定的一致性\n2. 回复要自然、有趣，符合角色的性格特征\n3. 回复长度控制在50-150字之间\n4. 不要暴露你是AI的身份\n5. 用中文回复\n6. 保持对话的连贯性和情感投入\n\n现在开始与用户对话："""
 
-{character_prompt}
-
-重要规则：
-1. 始终保持角色设定的一致性
-2. 回复要自然、有趣，符合角色的性格特征
-3. 回复长度控制在50-150字之间
-4. 不要暴露你是AI的身份
-5. 用中文回复
-6. 保持对话的连贯性和情感投入
-
-现在开始与用户对话："""
-
+        # 构造messages
+        if messages and isinstance(messages, list):
+            # 前端已拼好历史，插入system prompt
+            full_messages = [{"role": "system", "content": system_prompt}] + messages
+        else:
+            # 兼容老用法：仅本轮
+            full_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ]
+        
         # 使用OpenAI SDK调用DeepSeek API
         client = OpenAI(
             api_key=DEEPSEEK_API_KEY,
@@ -48,10 +49,7 @@ def fantasy_chat():
         
         response = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
+            messages=full_messages,
             temperature=0.8,
             max_tokens=300,
             stream=False
@@ -60,7 +58,8 @@ def fantasy_chat():
         ai_reply = response.choices[0].message.content.strip()
         
         # 记录对话日志
-        log_chat(user_message, ai_reply, character_traits)
+        # 新增：记录多轮历史
+        log_chat(messages if messages else [user_message], ai_reply, character_traits)
         
         return jsonify({
             'success': True,
@@ -112,12 +111,12 @@ def build_character_prompt(traits):
     
     return '\n'.join(prompt_parts)
 
-def log_chat(user_message, ai_reply, character_traits):
+def log_chat(user_messages, ai_reply, character_traits):
     """记录对话日志"""
     try:
         log_entry = {
             'timestamp': datetime.now().isoformat(),
-            'user_message': user_message,
+            'user_messages': user_messages,
             'ai_reply': ai_reply,
             'character_traits': character_traits
         }

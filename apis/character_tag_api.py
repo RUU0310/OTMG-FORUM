@@ -84,9 +84,28 @@ def character_tag_to_dict(ct):
         'tag_id': ct.tag_id,
         'value': ct.value,
         'tag': tag_to_dict(ct.tag) if ct.tag else None,
+        'character': character_to_dict(ct.character) if hasattr(ct, 'character') and ct.character else get_character_obj(ct.character_id),
         'created_at': ct.created_at,
         'updated_at': ct.updated_at
     }
+
+def get_character_obj(character_id):
+    # 查询角色对象并返回dict，若无则None
+    c = GameCharacter.query.get(character_id)
+    if c:
+        return character_to_dict(c)
+    return None
+
+def character_to_dict(c):
+    return {
+        'id': c.id,
+        'name': c.name,
+        'avatar': c.avatar,
+        'cv': c.cv,
+        'description': c.description,
+        'role_type': c.role_type,
+        'game_id': c.game_id
+    } if c else None
 
 @character_tag_api.route('/character-tags', methods=['POST'])
 def add_character_tag():
@@ -109,7 +128,10 @@ def update_character_tag(ct_id):
         return jsonify({'status': 'error', 'message': '角色标签不存在'}), 404
     data = request.json
     if 'value' in data:
-        ct.value = data['value']
+        v = data['value']
+        if isinstance(v, list):
+            v = ','.join(str(x) for x in v)
+        ct.value = v
     ct.updated_at = datetime.utcnow()
     db.session.commit()
     return jsonify({'status': 'success'})

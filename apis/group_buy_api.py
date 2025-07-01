@@ -304,7 +304,7 @@ def get_group_buy(group_buy_id):
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500 
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @group_buy_api.route('/group-buys/<int:group_buy_id>', methods=['PUT', 'PATCH'])
 def update_group_buy(group_buy_id):
@@ -488,4 +488,118 @@ def review_group_buy_request(request_id):
     )
     db.session.add(msg)
     db.session.commit()
-    return jsonify({'success': True, 'message': '审核完成'}) 
+    return jsonify({'success': True, 'message': '审核完成'})
+
+@group_buy_api.route('/users/<int:user_id>/my-group-buys', methods=['GET'])
+def get_my_group_buys(user_id):
+    """获取我发起的拼团列表（团长）"""
+    try:
+        status = request.args.get('status', None)
+        query = GroupBuy.query.filter_by(leader_id=user_id)
+        if status:
+            query = query.filter_by(status=status)
+        group_buys = query.order_by(GroupBuy.created_at.desc()).all()
+        result = []
+        for group_buy in group_buys:
+            leader = User.query.get(group_buy.leader_id)
+            product = GroupBuyProduct.query.get(group_buy.product_id)
+            characters = GroupBuyCharacter.query.filter_by(product_id=product.product_id).all() if product else []
+            member_count = GroupBuyMember.query.filter_by(group_buy_id=group_buy.group_buy_id).count()
+            adjustments = GroupBuyCharacterAdjustment.query.filter_by(group_buy_id=group_buy.group_buy_id).all()
+            total_max_count = sum([adj.max_count for adj in adjustments])
+            all_full = True
+            for adj in adjustments:
+                used = GroupBuyMember.query.filter_by(group_buy_id=group_buy.group_buy_id, character_id=adj.character_id).count()
+                if used < adj.max_count:
+                    all_full = False
+                    break
+            if group_buy.status == 'recruiting' and all_full:
+                group_buy.status = 'full'
+                db.session.commit()
+            elif group_buy.status == 'full' and not all_full:
+                group_buy.status = 'recruiting'
+                db.session.commit()
+            result.append({
+                'group_buy_id': group_buy.group_buy_id,
+                'title': group_buy.title,
+                'description': group_buy.description,
+                'status': group_buy.status,
+                'deadline': group_buy.deadline.isoformat() if group_buy.deadline else None,
+                'created_at': group_buy.created_at.isoformat() if group_buy.created_at else None,
+                'leader': {
+                    'user_id': leader.user_id,
+                    'username': leader.username,
+                    'nickname': leader.nickname
+                } if leader else None,
+                'product': {
+                    'product_id': product.product_id,
+                    'name': product.name,
+                    'image': product.image,
+                    'characters': [
+                        {'character_id': c.character_id, 'name': c.name, 'image': c.image, 'is_popular': c.is_popular}
+                        for c in characters
+                    ]
+                } if product else None,
+                'member_count': member_count,
+                'average_price': float(group_buy.average_price) if group_buy.average_price is not None else None,
+                'total_max_count': total_max_count
+            })
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@group_buy_api.route('/users/<int:user_id>/joined-group-buys', methods=['GET'])
+def get_joined_group_buys(user_id):
+    """获取我参与的拼团列表（成员）"""
+    try:
+        # 找到该用户参与的所有拼团ID（去重）
+        group_buy_ids = db.session.query(GroupBuyMember.group_buy_id).filter_by(user_id=user_id).distinct()
+        group_buys = GroupBuy.query.filter(GroupBuy.group_buy_id.in_(group_buy_ids)).order_by(GroupBuy.created_at.desc()).all()
+        result = []
+        for group_buy in group_buys:
+            leader = User.query.get(group_buy.leader_id)
+            product = GroupBuyProduct.query.get(group_buy.product_id)
+            characters = GroupBuyCharacter.query.filter_by(product_id=product.product_id).all() if product else []
+            member_count = GroupBuyMember.query.filter_by(group_buy_id=group_buy.group_buy_id).count()
+            adjustments = GroupBuyCharacterAdjustment.query.filter_by(group_buy_id=group_buy.group_buy_id).all()
+            total_max_count = sum([adj.max_count for adj in adjustments])
+            all_full = True
+            for adj in adjustments:
+                used = GroupBuyMember.query.filter_by(group_buy_id=group_buy.group_buy_id, character_id=adj.character_id).count()
+                if used < adj.max_count:
+                    all_full = False
+                    break
+            if group_buy.status == 'recruiting' and all_full:
+                group_buy.status = 'full'
+                db.session.commit()
+            elif group_buy.status == 'full' and not all_full:
+                group_buy.status = 'recruiting'
+                db.session.commit()
+            result.append({
+                'group_buy_id': group_buy.group_buy_id,
+                'title': group_buy.title,
+                'description': group_buy.description,
+                'status': group_buy.status,
+                'deadline': group_buy.deadline.isoformat() if group_buy.deadline else None,
+                'created_at': group_buy.created_at.isoformat() if group_buy.created_at else None,
+                'leader': {
+                    'user_id': leader.user_id,
+                    'username': leader.username,
+                    'nickname': leader.nickname
+                } if leader else None,
+                'product': {
+                    'product_id': product.product_id,
+                    'name': product.name,
+                    'image': product.image,
+                    'characters': [
+                        {'character_id': c.character_id, 'name': c.name, 'image': c.image, 'is_popular': c.is_popular}
+                        for c in characters
+                    ]
+                } if product else None,
+                'member_count': member_count,
+                'average_price': float(group_buy.average_price) if group_buy.average_price is not None else None,
+                'total_max_count': total_max_count
+            })
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500 

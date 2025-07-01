@@ -67,6 +67,66 @@ def add_user():
     db.session.commit()
     return jsonify({'user_id': u.user_id})
 
+@user_bp.route('/users/register', methods=['POST'])
+@cross_origin(origins="http://localhost:3000", supports_credentials=True)
+def register():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    nickname = data.get('nickname', '')
+    email = data.get('email', '')
+    phone = data.get('phone', '')
+    
+    # 验证必填字段
+    if not username or not password:
+        return jsonify({'status': 'fail', 'message': '用户名和密码不能为空'}), 400
+    
+    # 检查用户名唯一性
+    if User.query.filter_by(username=username).first():
+        return jsonify({'status': 'fail', 'message': '用户名已存在'}), 400
+    
+    # 检查邮箱唯一性（如果提供了邮箱）
+    if email and User.query.filter_by(email=email).first():
+        return jsonify({'status': 'fail', 'message': '邮箱已存在'}), 400
+    
+    # 检查手机号唯一性（如果提供了手机号）
+    if phone and User.query.filter_by(phone=phone).first():
+        return jsonify({'status': 'fail', 'message': '手机号已存在'}), 400
+    
+    # 创建新用户
+    new_user = User(
+        username=username,
+        password=password,
+        nickname=nickname,
+        email=email,
+        phone=phone,
+        avatar='',
+        bio='',
+        role='user',
+        upgrade_status='none',
+        upgrade_request_time=None
+    )
+    
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # 设置session
+        session['user_id'] = new_user.user_id
+        session['role'] = new_user.role
+        
+        return jsonify({
+            'status': 'success',
+            'user_id': new_user.user_id,
+            'username': new_user.username,
+            'role': new_user.role,
+            'nickname': new_user.nickname,
+            'upgrade_status': new_user.upgrade_status
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'fail', 'message': '注册失败，请稍后重试'}), 500
+
 @user_bp.route('/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
     u = User.query.get(user_id)
