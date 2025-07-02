@@ -2,8 +2,9 @@ from flask import Blueprint, request, jsonify
 from models.group_post import Group, PostCategory, Post, PostLike, PollOption, PollVote, GroupMember, PostComment, PostCommentLike, PostFavorite
 from models.user import User
 from extension import db
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
+from models import Game
 
 group_api = Blueprint('group_api', __name__)
 
@@ -14,14 +15,24 @@ def get_groups():
     result = []
     for g in groups:
         member_count = GroupMember.query.filter_by(group_id=g.group_id).count()
-        result.append({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count})
+        is_official = False
+        if g.game_id:
+            game = Game.query.get(g.game_id)
+            if game and getattr(game, 'is_official', False):
+                is_official = True
+        result.append({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count, 'is_official': is_official})
     return jsonify(result)
 
 @group_api.route('/groups/<int:group_id>', methods=['GET'])
 def get_group(group_id):
     g = Group.query.get_or_404(group_id)
     member_count = GroupMember.query.filter_by(group_id=g.group_id).count()
-    return jsonify({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count})
+    is_official = False
+    if g.game_id:
+        game = Game.query.get(g.game_id)
+        if game and getattr(game, 'is_official', False):
+            is_official = True
+    return jsonify({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count, 'is_official': is_official})
 
 @group_api.route('/groups', methods=['POST'])
 def create_group():
@@ -98,6 +109,13 @@ def get_posts(group_id):
         user = User.query.get(p.user_id)
         username = user.username if user else None
         nickname = user.nickname if user else None
+        # 转换时间为东八区字符串
+        def to_china_time(dt):
+            if not dt: return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            china_dt = dt.astimezone(timezone(timedelta(hours=8)))
+            return china_dt.strftime('%Y-%m-%d %H:%M:%S')
         post_data = {
             'post_id': p.post_id, 
             'user_id': p.user_id, 
@@ -106,14 +124,16 @@ def get_posts(group_id):
             'title': p.title, 
             'content': p.content, 
             'images': p.images, 
-            'created_at': p.created_at, 
-            'updated_at': p.updated_at, 
+            'created_at': to_china_time(p.created_at),
+            'updated_at': to_china_time(p.updated_at), 
             'category_id': p.category_id,
             'category_name': category_name,
             'is_poll': p.is_poll, 
             'poll_type': p.poll_type, 
             'poll_deadline': p.poll_deadline,
-            'like_count': like_count
+            'like_count': like_count,
+            'group_id': group_id,
+            'group_name': Group.query.get(group_id).name if Group.query.get(group_id) else None
         }
         # 如果是投票，获取投票选项
         if p.is_poll:
@@ -148,6 +168,13 @@ def get_post(post_id):
     username = user.username if user else None
     nickname = user.nickname if user else None
     avatar = user.avatar if user else None
+    # 转换时间为东八区字符串
+    def to_china_time(dt):
+        if not dt: return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        china_dt = dt.astimezone(timezone(timedelta(hours=8)))
+        return china_dt.strftime('%Y-%m-%d %H:%M:%S')
     post_data = {
         'post_id': p.post_id, 
         'group_id': p.group_id, 
@@ -158,14 +185,16 @@ def get_post(post_id):
         'title': p.title, 
         'content': p.content, 
         'images': p.images, 
-        'created_at': p.created_at, 
-        'updated_at': p.updated_at, 
+        'created_at': to_china_time(p.created_at),
+        'updated_at': to_china_time(p.updated_at), 
         'category_id': p.category_id,
         'category_name': category_name,
         'is_poll': p.is_poll, 
         'poll_type': p.poll_type, 
         'poll_deadline': p.poll_deadline,
         'like_count': like_count,
+        'group_id': p.group_id,
+        'group_name': Group.query.get(p.group_id).name if Group.query.get(p.group_id) else None,
         'liked': liked
     }
     # 如果是投票，获取投票选项
@@ -409,7 +438,12 @@ def get_user_groups(user_id):
     result = []
     for g in groups:
         member_count = GroupMember.query.filter_by(group_id=g.group_id).count()
-        result.append({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count})
+        is_official = False
+        if g.game_id:
+            game = Game.query.get(g.game_id)
+            if game and getattr(game, 'is_official', False):
+                is_official = True
+        result.append({'group_id': g.group_id, 'game_id': g.game_id, 'name': g.name, 'description': g.description, 'avatar': g.avatar, 'member_count': member_count, 'is_official': is_official})
     return jsonify(result)
 
 # 获取评论（楼中楼结构）
@@ -428,6 +462,7 @@ def get_post_comments(post_id):
             'user_id': c.user_id,
             'nickname': user_map.get(c.user_id).nickname if user_map.get(c.user_id) else '',
             'avatar': user_map.get(c.user_id).avatar if user_map.get(c.user_id) else '',
+            'role': user_map.get(c.user_id).role if user_map.get(c.user_id) else '',
             'content': c.content,
             'parent_id': c.parent_id,
             'created_at': c.created_at,
@@ -569,7 +604,9 @@ def get_hot_posts():
             'is_poll': p.is_poll,
             'poll_type': p.poll_type,
             'poll_deadline': p.poll_deadline,
-            'like_count': like_count
+            'like_count': like_count,
+            'group_id': p.group_id,
+            'group_name': Group.query.get(p.group_id).name if Group.query.get(p.group_id) else None
         }
         result.append(post_data)
     return jsonify(result)
